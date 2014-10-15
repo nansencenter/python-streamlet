@@ -12,21 +12,26 @@
 # This program is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
-
 import numpy as np
 import matplotlib.pyplot as plt
 
+# Streamlet.status
+OK = 0
+NOGROW = 1
+EMPTY = 2
 
 class Streamlet(object):
     ''' Streamlet is essentially a short streamline segment'''
     pointsx = None
     pointsy = None
     moves = 0
-    plot = None
+    line = None
+    status = OK
+    doplot = True
 
     def __init__(self, u, v, x0=None, y0=None, factor=1,
                     lx=0, rx=1, ly=0, uy=1,
-                    style='k-', **kwargs):
+                    style='k-', doplot=True, **kwargs):
         ''' Create a Streamlet with only 2 points
 
         Parameters
@@ -69,6 +74,7 @@ class Streamlet(object):
         self.height =u.shape[0]
         self.factor = factor
         self.style = style
+        self.doplot = doplot
         self.kwargs = kwargs
 
         # get starting point
@@ -85,7 +91,11 @@ class Streamlet(object):
         self.grow(u, v, 1)
 
         # create plot
-        self.plot()
+        Streamlet.plot(self)
+
+    def __del__(self):
+        ''' Clean up: remove line from plot'''
+        self.line.remove()
 
     def get_next_point(self, u, v, x0, y0):
         ''' Find next point
@@ -192,6 +202,8 @@ class Streamlet(object):
                 self.pointsx.append(x1)
                 self.pointsy.append(y1)
                 x0, y0 = x1, y1
+            else:
+                self.status = NOGROW
 
     def move(self, u, v, steps, maxMoves=None):
         ''' Move the streamlet forward
@@ -216,14 +228,17 @@ class Streamlet(object):
                 number of moves so far
 
         '''
-        if maxMoves is not None and self.moves <= maxMoves:
+        if maxMoves is None or self.moves <= maxMoves:
             self.grow(u, v, steps)
         for i in range(steps):
             self.pointsx.pop(0)
             self.pointsy.pop(0)
         self.moves += 1
+        if len(self) < 2:
+            self.status = EMPTY
 
-    def plot(self, style='k-', **kwargs):
+    @classmethod
+    def plot(cls, streamlet):
         ''' Plot the streamlet on given canvas
 
         Parameters
@@ -238,10 +253,14 @@ class Streamlet(object):
                 container for the plot
 
         '''
-        if len(self) > 1:
-            self.plot = plt.plot(self.pointsx, self.pointsy, self.style, **self.kwargs)[0]
+        if not streamlet.doplot:
+            return
 
-    def update_plot(self):
+        if streamlet.status != EMPTY:
+            streamlet.line = plt.plot(streamlet.pointsx, streamlet.pointsy, streamlet.style, **streamlet.kwargs)[0]
+
+    @classmethod
+    def update_plot(cls, streamlet):
         ''' Update the plot
 
         Modifies
@@ -250,8 +269,11 @@ class Streamlet(object):
                 container for the plot
 
         '''
-        self.plot.set_xdata(self.pointsx)
-        self.plot.set_ydata(self.pointsy)
+        if not streamlet.doplot:
+            return
+
+        streamlet.line.set_xdata(streamlet.pointsx)
+        streamlet.line.set_ydata(streamlet.pointsy)
 
     def __str__(self):
         ''' Print '''
@@ -273,6 +295,7 @@ class StreamletSet(object):
     style = '-k'
     linewidth = 0.2
     pool = None
+    doplot = True
 
     def __init__(self, X=None, Y=None, **kwargs):
         ''' Create StreamletSet object and set parameters
@@ -284,7 +307,7 @@ class StreamletSet(object):
             **kwargs : dict
                 other StreamletSet parameters'''
         # set parameters
-        self.__dict__ = dict(kwargs)
+        self.__dict__.update(kwargs)
 
         # set coordinates of boundaries
         if X is not None and Y is not None:
@@ -322,7 +345,8 @@ class StreamletSet(object):
                             uy=self.uy,
                             factor=self.factor,
                             style=self.style,
-                            linewidth=self.linewidth)
+                            linewidth=self.linewidth,
+                            doplot=self.doplot)
 
             # add Streamlet to pool if number of points is 2
             if len(sl) > 1:
@@ -363,16 +387,11 @@ class StreamletSet(object):
                 Streamlets in the self.pool are grown
         See also Streamlet.grow()
         '''
-        # container for good Streamlets (whos length has increased)
-        goodLines = []
         for sl in self.pool:
-            l0 = len(sl)
             sl.grow(u, v, steps)
-            # good if streamlet is not stuck (if it did grow)
-            if len(sl) > l0:
-                goodLines.append(sl)
 
-            self.pool = list(goodLines) # keep good Streamlets only
+        # remove Streamlets which don't grow
+        self.cleanup(badStatus=NOGROW)
 
     def move(self, u, v, steps, maxMoves=None):
         ''' Move all Streamlets
@@ -390,23 +409,15 @@ class StreamletSet(object):
         See also Streamlet.move()
 
         '''
-        # container for good Streamlets (not empty)
-        goodLines = []
         for sl in self.pool:
             sl.move(u, v, steps, maxMoves)
-            # good if Streamlets is not empty
-            if len(sl) > 1:
-                goodLines.append(sl)
 
-        self.pool = list(goodLines) # keep good Streamlets only
+        # remove empty Streamlets
+        self.cleanup(badStatus=EMPTY)
 
-    def plot(self, **kwargs):
+    def plot(self):
         ''' Plot all streamlets
 
-        Parameters
-        ----------
-            **kwargs : dict
-               parameters for pyplot.plot
         Modifies
         --------
             self.pool : list
@@ -414,11 +425,7 @@ class StreamletSet(object):
         See also Streamlet.plot()
 
         '''
-        self.__dict__ = dict(kwargs)
-        if 'style' in kwargs:
-            kwargs.pop('style')
-        for sl in self.pool:
-            sl.plot(style=self.style, **kwargs)
+        map(Streamlet.plot, self.pool)
 
     def update_plot(self):
         ''' Update plot of all Streamlets
@@ -430,10 +437,9 @@ class StreamletSet(object):
         See also Streamlet.update_plot()
 
         '''
-        for sl in self.pool:
-            sl.update_plot()
+        map(Streamlet.update_plot, self.pool)
 
-    def cleanup(self):
+    def cleanup(self, badStatus=EMPTY):
         ''' Remove empty streamlets
 
         Modifies
@@ -445,7 +451,89 @@ class StreamletSet(object):
         # find good streamlets into goodLines
         goodLines = []
         for sl in self.pool:
-            if len(sl.pointsx) > 1:
+            if sl.status < badStatus:
                 goodLines.append(sl)
+
         # and replace self.pool with goodLines
         self.pool = list(goodLines)
+
+    def grow_and_plot(self, u, v, frame, filename, steps=1, grows=1):
+        ''' Generate several images with gradually growing Streamlets
+
+        Parameters
+        ----------
+            u, v : numpy arrays
+                fields of eastward and northward displacement
+            frame : int
+                number of the frame, is used in image naming
+            filename : str
+                template for file name, should contain only one %d for <frame>
+            steps : int
+                number of points to add and remove in one go
+            grows : int
+                number of calls to self.grow()
+                how many frames to generate
+
+        Returns
+        -------
+            frame : int
+                increased frame
+        Modifies
+        --------
+            self.pool : list
+                all Streamlets are grown and and plots are updated
+            <filename> % <frame> is generated
+
+        '''
+
+        for gi in range(grows):
+            print '%d GROW: %d' % (frame, len(self)),
+            self.grow(u, v, steps)
+            self.update_plot()
+            plt.savefig(filename % frame)
+            frame += 1
+            print len(self)
+
+        return frame
+
+    def move_and_plot(self, u, v, frame, filename, steps=1, moves=1, maxMoves=None):
+        ''' Generate several images with gradually moving Streamlets
+
+        Parameters
+        ----------
+            u, v : numpy arrays
+                fields of eastward and northward displacement
+            frame : int
+                number of the frame, is used in image naming
+            filename : str
+                template for file name, should contain only one %d for <frame>
+            steps : int
+                number of points to add and remove in one go
+            moves : int
+                number of calls to self.move()
+                how many frames to generate
+            maxMoves : int
+                maximum number of allowed moves. If streamlet made more moves
+                that <maxMoves> it will not grow but only shrink
+
+        Returns
+        -------
+            frame : int
+                increased frame
+        Modifies
+        --------
+            self.pool : list
+                all Streamlets are grown and and plots are updated
+            <filename> % <frame> is generated
+
+        '''
+
+        for mi in range(moves):
+            print '%d MOVE: %d' % (frame, len(self)),
+            self.move(u, v, steps, maxMoves)
+            self.update_plot()
+            plt.savefig(filename % frame)
+            frame += 1
+            print len(self)
+
+        return frame
