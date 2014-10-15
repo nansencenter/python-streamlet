@@ -238,7 +238,6 @@ class Streamlet(object):
                 container for the plot
 
         '''
-        import ipdb; ipdb.set_trace()
         if len(self) > 1:
             self.plot = plt.plot(self.pointsx, self.pointsy, self.style, **self.kwargs)[0]
 
@@ -289,10 +288,10 @@ class StreamletSet(object):
 
         # set coordinates of boundaries
         if X is not None and Y is not None:
-            lx = X[-1, 0] # left X
-            ly = Y[-1, 0] # lower Y
-            rx = X[0, -1] # right X
-            uy = Y[0, -1] # upper Y
+            self.lx = X[-1, 0] # left X
+            self.ly = Y[-1, 0] # lower Y
+            self.rx = X[0, -1] # right X
+            self.uy = Y[0, -1] # upper Y
 
         # create empty pool of streamlets
         if self.pool is None:
