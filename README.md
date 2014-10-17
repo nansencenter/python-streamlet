@@ -3,7 +3,7 @@ Python library for drawing nicely floating streamlets
 Install
 -------
 
-First, install required libraries. The easies way is to use a Python distribution. E.g. `Anaconda <https://store.continuum.io/cshop/anaconda/>`_
+First, install required libraries. The easies way is to use a Python distribution. E.g. [Anaconda](https://store.continuum.io/cshop/anaconda/)
 
     # download the minimal anaconda distribution
     wget http://repo.continuum.io/miniconda/Miniconda-latest-Linux-x86_64.sh -O miniconda.sh
