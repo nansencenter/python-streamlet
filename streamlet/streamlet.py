@@ -53,7 +53,7 @@ class Streamlet(object):
             style : str
                 style to draw the line
             **kwargs : dict
-                parameters for plot
+                parameters for pyplot.plot()
 
         Modifies
         --------
@@ -75,7 +75,6 @@ class Streamlet(object):
         self.factor = factor
         self.style = style
         self.doplot = doplot
-        self.kwargs = kwargs
 
         # get starting point
         if x0 is None:
@@ -91,7 +90,7 @@ class Streamlet(object):
         self.grow(u, v, 1)
 
         # create plot
-        Streamlet.plot(self)
+        self.plot(**kwargs)
 
     def __del__(self):
         ''' Clean up: remove line from plot'''
@@ -237,8 +236,7 @@ class Streamlet(object):
         if len(self) < 2:
             self.status = EMPTY
 
-    @classmethod
-    def plot(cls, streamlet):
+    def plot(self, **kwargs):
         ''' Plot the streamlet on given canvas
 
         Parameters
@@ -253,11 +251,11 @@ class Streamlet(object):
                 container for the plot
 
         '''
-        if not streamlet.doplot:
+        if not self.doplot:
             return
 
-        if streamlet.status != EMPTY:
-            streamlet.line = plt.plot(streamlet.pointsx, streamlet.pointsy, streamlet.style, **streamlet.kwargs)[0]
+        if self.status != EMPTY:
+            self.line = plt.plot(self.pointsx, self.pointsy, self.style, **kwargs)[0]
 
     @classmethod
     def update_plot(cls, streamlet):
@@ -291,23 +289,38 @@ class StreamletSet(object):
     rx = 1
     ly = 0
     uy = 1
-    factor = 1
-    style = '-k'
-    linewidth = 0.2
     pool = None
-    doplot = True
 
-    def __init__(self, X=None, Y=None, **kwargs):
+    def __init__(self, X=None, Y=None, factor=1,
+                                       style='-k',
+                                       doplot=True,
+                                       fig=None,
+                                       **kwargs):
         ''' Create StreamletSet object and set parameters
 
         Parameter
         ---------
             X, Y : numpy arrays
                 regular grids with X, Y coordinates of the pixels
+            factor : float
+                increase U/V strength by <factor>. Low factor gives smoother
+                Streamlets, high factor gives fast growes/moves
+            style : str
+                parameter for pyplot.plot, e.g. '-k'
+            doplot : bool
+                Plot ?
+            fig : pyplot.Figure
+                canvas for plotting
             **kwargs : dict
-                other StreamletSet parameters'''
-        # set parameters
-        self.__dict__.update(kwargs)
+                parameters for pyplot.plot()
+            '''
+
+        # set parameters for growing and plotting
+        self.factor = factor
+        self.style = style
+        self.doplot = doplot
+        self.fig = fig
+        self.kwargs = kwargs
 
         # set coordinates of boundaries
         if X is not None and Y is not None:
@@ -345,8 +358,8 @@ class StreamletSet(object):
                             uy=self.uy,
                             factor=self.factor,
                             style=self.style,
-                            linewidth=self.linewidth,
-                            doplot=self.doplot)
+                            doplot=self.doplot,
+                            **self.kwargs)
 
             # add Streamlet to pool if number of points is 2
             if len(sl) > 1:
@@ -457,7 +470,7 @@ class StreamletSet(object):
         # and replace self.pool with goodLines
         self.pool = list(goodLines)
 
-    def grow_and_plot(self, u, v, frame, filename, steps=1, grows=1):
+    def grow_and_plot(self, u, v, frame, filename, steps=1, grows=1, **kwargs):
         ''' Generate several images with gradually growing Streamlets
 
         Parameters
@@ -473,6 +486,8 @@ class StreamletSet(object):
             grows : int
                 number of calls to self.grow()
                 how many frames to generate
+            **kwargs : dict
+                parameters for pyplot.savefig
 
         Returns
         -------
@@ -485,18 +500,25 @@ class StreamletSet(object):
             <filename> % <frame> is generated
 
         '''
+        # set canvas to draw
+        canvas = plt
+        if self.fig is not None:
+            canvas = self.fig
 
         for gi in range(grows):
             print '%d GROW: %d' % (frame, len(self)),
             self.grow(u, v, steps)
             self.update_plot()
-            plt.savefig(filename % frame)
+            canvas.savefig(filename % frame, **kwargs)
             frame += 1
             print len(self)
 
         return frame
 
-    def move_and_plot(self, u, v, frame, filename, steps=1, moves=1, maxMoves=None):
+    def move_and_plot(self, u, v, frame, filename, steps=1,
+                                                   moves=1,
+                                                   maxMoves=None,
+                                                   **kwargs):
         ''' Generate several images with gradually moving Streamlets
 
         Parameters
@@ -515,6 +537,8 @@ class StreamletSet(object):
             maxMoves : int
                 maximum number of allowed moves. If streamlet made more moves
                 that <maxMoves> it will not grow but only shrink
+            **kwargs : dict
+                parameters for pyplot.savefig
 
         Returns
         -------
@@ -527,12 +551,16 @@ class StreamletSet(object):
             <filename> % <frame> is generated
 
         '''
+        # set canvas to draw
+        canvas = plt
+        if self.fig is not None:
+            canvas = self.fig
 
         for mi in range(moves):
             print '%d MOVE: %d' % (frame, len(self)),
             self.move(u, v, steps, maxMoves)
             self.update_plot()
-            plt.savefig(filename % frame)
+            plt.savefig(filename % frame, **kwargs)
             frame += 1
             print len(self)
 
