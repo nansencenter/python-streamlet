@@ -6,7 +6,7 @@ Install
 First, install required libraries. The easies way is to use a Python distribution. E.g. `Anaconda <https://store.continuum.io/cshop/anaconda/>`_
 
 ::
-    
+
     # download the minimal anaconda distribution
     wget http://repo.continuum.io/miniconda/Miniconda-latest-Linux-x86_64.sh -O miniconda.sh
     
@@ -55,6 +55,7 @@ In you code you should have several things available before using streamlet:
 In the first simple exmaple we will seed 100 streamlets containing only two points, let them grow a little bit until they are 5 steps long and will move them 10 steps forward. Length of each particular step depends on the strength of underlying U/V components.
 
 ::
+
     # import API from python-streamlet
     from streamlet import StreamletSet, Streamlet
 
@@ -104,6 +105,7 @@ Or into a movie using ```avconv```. Do it outside Python.
 In the second exmaple we repeat seeding, growing and moving of streamlets 10 times to generate a lengthy animation. 
 
 ::
+
     # dont forget to provide the below
     # X, Y = some_source()
     # U, V = anouther_source()
@@ -122,6 +124,7 @@ In the second exmaple we repeat seeding, growing and moving of streamlets 10 tim
 If you have sequence of background value arrays there is trick to make proper animation. Behind the scenes, Streamlet() does pyplot.plot() only once, when you create a new streamlet. Later, when you grow, or move it updates the xdata and ydata of the plotted line and saves animation without recreating the canvas. Therefore you should not do pcolormesh() everytime you want to update backgound, but rather update the pregenerated pcolormesh with new values as in the example below.
 
 ::
+
     # dont forget to provide X,Y,U,V
     # X, Y = some_source()
     # U, V = anouther_source()
