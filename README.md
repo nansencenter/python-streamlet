@@ -1,11 +1,9 @@
 Python library for drawing nicely floating streamlets
 
-=======
 Install
-=======
-First, install required libraries. The easies way is to use a Python distribution. E.g. `Anaconda <https://store.continuum.io/cshop/anaconda/>`_
+-------
 
-::
+First, install required libraries. The easies way is to use a Python distribution. E.g. `Anaconda <https://store.continuum.io/cshop/anaconda/>`_
 
     # download the minimal anaconda distribution
     wget http://repo.continuum.io/miniconda/Miniconda-latest-Linux-x86_64.sh -O miniconda.sh
@@ -32,20 +30,20 @@ First, install required libraries. The easies way is to use a Python distributio
     conda install --yes ipython numpy scipy pillow basemap matplotlib
 
 Second, download the code into folder with your python programs
-::
+
     cd /home/username/pythonporgs/
     git clone https://github.com/nansencenter/python-streamlet.git
 
 And finally add the python-streamlet dir to you $PYTHONPATH
-::
+
     echo 'export PYTHONPATH=$PYTHONPATH:/home/username/pythonporgs/python-streamlet' >> ~/.bashrc
 
-:note:
-    The package will soon be added to PyPI and installation will be as easy as ```pip install streamlet```
+### Note
+    The package will soon be added to PyPI and installation will be as easy as ``pip install streamlet``
 
-=====
+
 Usage
-=====
+-----
 
 In you code you should have several things available before using streamlet:
  * X, Y - numpy 2D arrays with regular fields of X and Y coordinates. That can be e.g. lon/lat fields in cylindrical projection (EPSG:4326);
@@ -53,8 +51,6 @@ In you code you should have several things available before using streamlet:
  * matplotlib.pyplot axes initiated e.g. with pyplot.pcolormesh(array_with_background_color). That can be e.g. sea surface temperature
 
 In the first simple exmaple we will seed 100 streamlets containing only two points, let them grow a little bit until they are 5 steps long and will move them 10 steps forward. Length of each particular step depends on the strength of underlying U/V components.
-
-::
 
     # import API from python-streamlet
     from streamlet import StreamletSet, Streamlet
@@ -91,20 +87,16 @@ In the first simple exmaple we will seed 100 streamlets containing only two poin
     moves = 10 # move streamlets 10 times
     frame = sls.move_and_plot(U, V, frame, filename, steps, moves)
 
-Now convert your PNG frames into a animated GIF using ```ImageMagics```,
+Now convert your PNG frames into a animated GIF using ``ImageMagics``,
 
-::
     convert -delay 5 example01_*.png example01.gif
 
-Or into a movie using ```avconv```. Do it outside Python.
+Or into a movie using ``avconv``. Do it outside Python.
 
-::
     avconv -y -r 24 -i example01_%05d.png -b 3000k -r 24 example01.avi
 
 
 In the second exmaple we repeat seeding, growing and moving of streamlets 10 times to generate a lengthy animation. 
-
-::
 
     # dont forget to provide the below
     # X, Y = some_source()
@@ -122,8 +114,6 @@ In the second exmaple we repeat seeding, growing and moving of streamlets 10 tim
         frame = sls.move_and_plot(U, V, frame, filename, steps, moves)
 
 If you have sequence of background value arrays there is trick to make proper animation. Behind the scenes, Streamlet() does pyplot.plot() only once, when you create a new streamlet. Later, when you grow, or move it updates the xdata and ydata of the plotted line and saves animation without recreating the canvas. Therefore you should not do pcolormesh() everytime you want to update backgound, but rather update the pregenerated pcolormesh with new values as in the example below.
-
-::
 
     # dont forget to provide X,Y,U,V
     # X, Y = some_source()
