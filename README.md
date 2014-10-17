@@ -139,8 +139,8 @@ If you have sequence of background value arrays there is trick to make proper an
         if quad is None:
             # we call  pcolormesh only the first time in the loop
             quad = plt.pcolormesh(some_array)
-            plt.xlim(X[-1, 0], X[0, -1]) # take coordinates from lower left ([-1, 0]) and ...
-            plt.ylim(Y[-1, 0], Y[0, -1]) # ... upper right ([0, -1]) corners
+            plt.xlim(X[-1, 0], X[0, -1])
+            plt.ylim(Y[-1, 0], Y[0, -1])
         else:
             # other times we only update it with values from the array
             quad.set_array(some_array[1:, 1:].ravel())
