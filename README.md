@@ -61,10 +61,13 @@ In the first simple exmaple we will seed 100 streamlets containing only two poin
     # get U, V from another source
     # U, V = anouther_source()
     
-    # plot background color using data from some array
-    # quad = plt.pcolormesh(some_array)
-    # plt.xlim(X[-1, 0], X[0, -1]) # take coordinates from lower left ([-1, 0]) and ...
-    # plt.ylim(Y[-1, 0], Y[0, -1]) # ... upper right ([0, -1]) corners
+    # get array with background values
+    # some_array = onemore_source()
+    
+    # plot background color using data from some array and set X/Y limit
+    quad = plt.pcolormesh(some_array)
+    plt.xlim(X[-1, 0], X[0, -1]) # take coordinates from lower left ([-1, 0]) and ...
+    plt.ylim(Y[-1, 0], Y[0, -1]) # ... upper right ([0, -1]) corners
     
     # generate an empty set of streamlets. It defines:
     #   the grid for drawing streamlets
@@ -101,9 +104,12 @@ In the second exmaple we repeat seeding, growing and moving of streamlets 10 tim
     # dont forget to provide the below
     # X, Y = some_source()
     # U, V = anouther_source()
-    # quad = plt.pcolormesh(some_array)
-    # plt.xlim(X[-1, 0], X[0, -1]) # take coordinates from lower left ([-1, 0]) and ...
-    # plt.ylim(Y[-1, 0], Y[0, -1]) # ... upper right ([0, -1]) corners
+    # some_array = onemore_source()
+    
+    # init canvas
+    quad = plt.pcolormesh(some_array)
+    plt.xlim(X[-1, 0], X[0, -1])
+    plt.ylim(Y[-1, 0], Y[0, -1])
     
     sls = StreamletSet(X, Y, style='k-', linewidth=0.5, factor=1)
     frame = 0
@@ -120,7 +126,7 @@ If you have sequence of background value arrays there is trick to make proper an
     # U, V = anouther_source()
 
     # NB! Here we set the quad to be None!
-    # quad = None
+    quad = None
 
     sls = StreamletSet(X, Y, style='k-', linewidth=0.5, factor=1)
     frame = 0
@@ -133,8 +139,8 @@ If you have sequence of background value arrays there is trick to make proper an
         if quad is None:
             # we call  pcolormesh only the first time in the loop
             quad = plt.pcolormesh(some_array)
-            # plt.xlim(X[-1, 0], X[0, -1]) # take coordinates from lower left ([-1, 0]) and ...
-            # plt.ylim(Y[-1, 0], Y[0, -1]) # ... upper right ([0, -1]) corners
+            plt.xlim(X[-1, 0], X[0, -1]) # take coordinates from lower left ([-1, 0]) and ...
+            plt.ylim(Y[-1, 0], Y[0, -1]) # ... upper right ([0, -1]) corners
         else:
             # other times we only update it with values from the array
             quad.set_array(some_array[1:, 1:].ravel())
