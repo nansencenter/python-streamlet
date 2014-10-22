@@ -14,6 +14,7 @@
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 import numpy as np
 import matplotlib.pyplot as plt
+from scipy.ndimage.filters import gaussian_filter
 
 # Streamlet.status
 OK = 0
@@ -29,7 +30,7 @@ class Streamlet(object):
     status = OK
     doplot = True
 
-    def __init__(self, u, v, x0=None, y0=None, factor=1,
+    def __init__(self, u=None, v=None, x0=None, y0=None, factor=1,
                     lx=0, rx=1, ly=0, uy=1,
                     style='k-', doplot=True, **kwargs):
         ''' Create a Streamlet with only 2 points
@@ -70,33 +71,53 @@ class Streamlet(object):
         self.rx = rx
         self.ly = ly
         self.uy = uy
-        self.width = u.shape[1]
-        self.height =u.shape[0]
         self.factor = factor
         self.style = style
         self.doplot = doplot
 
-        # get starting point
-        if x0 is None:
-            x0 = lx + np.random.random() * (rx - lx)
-        if y0 is None:
-            y0 = ly + np.random.random() * (uy - ly)
+        if u is not None and v is not None:
+            self.width  = u.shape[1]
+            self.height = u.shape[0]
 
-        # add starting point
-        self.pointsx = [x0]
-        self.pointsy = [y0]
+            # get starting point
+            if x0 is None:
+                x0 = lx + np.random.random() * (rx - lx)
+            if y0 is None:
+                y0 = ly + np.random.random() * (uy - ly)
 
-        # add one more point
-        self.grow(u, v, 1)
+            # add starting point
+            self.pointsx = [x0]
+            self.pointsy = [y0]
 
-        # create plot
-        self.plot(**kwargs)
+            # add one more point
+            self.grow(u, v, 1)
+
+            # create plot
+            self.plot(**kwargs)
+
+    def copy(self):
+        ''' Copy most of the attributes into a new instance '''
+        streamline = Streamlet()
+
+        streamline.lx = self.lx
+        streamline.rx = self.rx
+        streamline.ly = self.ly
+        streamline.uy = self.uy
+        streamline.width = self.width
+        streamline.height = self.height
+        streamline.factor = self.factor
+        streamline.style = self.style
+        streamline.doplot = self.doplot
+        streamline.pointsx = self.pointsx
+        streamline.pointsy = self.pointsy
+
+        return streamline
 
     def __del__(self):
         ''' Clean up: remove line from plot'''
         self.line.remove()
 
-    def get_next_point(self, u, v, x0, y0):
+    def get_next_point(self, u, v, x0, y0, prev=False):
         ''' Find next point
 
         Parameters
@@ -109,6 +130,8 @@ class Streamlet(object):
                 X-coordinate of the original point
             y0 : float
                 Y-coordinate of the original point
+            prev : bool
+                get previous point instead of next ?
 
         Returns
         -------
@@ -155,9 +178,16 @@ class Streamlet(object):
         uInterp = np.sum(subU * weights) / np.sum(weights)
         vInterp = np.sum(subV * weights) / np.sum(weights)
 
-        # calculate next point
-        x1 = x0 + uInterp * self.factor
-        y1 = y0 + vInterp * self.factor
+        if prev:
+            # calculate previous point
+            x1 = x0 - uInterp * self.factor
+            y1 = y0 - vInterp * self.factor
+        else:
+            # calculate next point
+            x1 = x0 + uInterp * self.factor
+            y1 = y0 + vInterp * self.factor
+
+
 
         return x1, y1
 
@@ -178,7 +208,7 @@ class Streamlet(object):
         r = self.height * (1 - (y - self.ly) / (self.uy - self.ly))
         return c, r
 
-    def grow(self, u, v, steps):
+    def grow(self, u, v, steps, both=False, mask=None):
         ''' Add points to the head of stream line
 
         Parameters
@@ -187,22 +217,80 @@ class Streamlet(object):
                 fields of eastward and northward displacement
             steps : int
                 number of points to add in one go
+            both : bool
+                Grow both directions ?
+            mask : bool numpy array
+                if True - grow further from this pixel
+                if False - stop growing
         Modifies
         --------
             self.pointsx, self.pointsy : lists
                 X, Y coordinates, <steps> points are appended
 
         '''
-        # get the last point
-        x0, y0 = self.pointsx[-1], self.pointsy[-1]
+        # get the first and the last point
+        x00, y00 = self.pointsx[0], self.pointsy[0]
+        x10, y10 = self.pointsx[-1], self.pointsy[-1]
+
+        grow = False
         for si in range(steps):
-            x1, y1 = self.get_next_point(u, v, x0, y0)
-            if (x1 is not None) and (y1 is not None):
-                self.pointsx.append(x1)
-                self.pointsy.append(y1)
-                x0, y0 = x1, y1
-            else:
+            # get next point from the tail
+            x11, y11 = self.get_next_point(u, v, x10, y10)
+            # if point is OK
+            if (x11 is not None) and (y11 is not None):
+                if mask is None:
+                    # if mask is not given
+                    msk = True
+                else:
+                    # if mask is given
+                    c, r = self.cr_from_xy(x11, y11)
+                    r, c = self.valid_rc(r, c)
+                    msk = mask[r, c]
+                if msk:
+                    self.pointsx.append(x11)
+                    self.pointsy.append(y11)
+                    x10, y10 = x11, y11
+                    grow = True
+
+            if both:
+                x01, y01 = self.get_next_point(u, v, x00, y00, prev=True)
+                if (x01 is not None) and (y01 is not None):
+                    if mask is None:
+                        # if mask is not given
+                        msk = True
+                    else:
+                        # if mask is given
+                        c, r = self.cr_from_xy(x01, y01)
+                        r, c = self.valid_rc(r, c)
+                        msk = mask[r, c]
+                    if msk:
+                        self.pointsx = [x01] + self.pointsx
+                        self.pointsy = [y01] + self.pointsy
+                        x00, y00 = x01, y01
+                        grow = True
+
+            if not grow:
                 self.status = NOGROW
+
+    def grow_full(self, u, v, maxLength=np.inf, both=False, mask=None):
+        ''' Add points to the head of stream line until it stops growing
+
+        Parameters
+        ----------
+            u, v : numpy arrays
+                fields of eastward and northward displacement
+            maxLength : int
+                maximum number of steps to grow
+            both : bool
+                grow on both sides ?
+        Modifies
+        --------
+            self.pointsx, self.pointsy : lists
+                X, Y coordinates, <steps> points are appended
+
+        '''
+        while self.status == OK and len(self) < maxLength:
+            self.grow(u, v, 1, both, mask)
 
     def move(self, u, v, steps, maxMoves=None):
         ''' Move the streamlet forward
@@ -236,7 +324,7 @@ class Streamlet(object):
         if len(self) < 2:
             self.status = EMPTY
 
-    def plot(self, **kwargs):
+    def plot(self, *args, **kwargs):
         ''' Plot the streamlet on given canvas
 
         Parameters
@@ -282,6 +370,29 @@ class Streamlet(object):
     def __len__(self):
         ''' Length of streamlet is number of points '''
         return len(self.pointsx)
+
+
+    def rasterize(self, X, blur=0):
+        ''' Returns matrix with pixels = 1 where streamlet is crossing '''
+
+        raster = np.zeros(X.shape)
+        for x, y in zip(self.pointsx, self.pointsy):
+            # get point center
+            c, r = self.cr_from_xy(x, y)
+            if 0 < r < X.shape[0] and 0 < c < X.shape[1]:
+                raster[int(r), int(c)] = 1
+
+        if blur:
+            raster = gaussian_filter(raster, blur)
+
+        return raster
+
+    def valid_rc(self, r, c):
+        ''' Return R/C within matrix '''
+        r = max(0, min(self.height-1, int(r)))
+        c = max(0, min(self.width-1, int(c)))
+        return r, c
+
 
 class StreamletSet(object):
     ''' Collection of Streamlet objects '''
@@ -333,6 +444,11 @@ class StreamletSet(object):
         if self.pool is None:
             self.pool = []
 
+    def __del__(self):
+        ''' Clean up: remove lines from plot'''
+        for sl in self.pool:
+            del sl
+
     def add_random(self, u, v, number=100):
         ''' Create Streamlets at random positions
 
@@ -365,6 +481,47 @@ class StreamletSet(object):
             if len(sl) > 1:
                 self.pool.append(sl)
                 n += 1
+
+
+    def add_regular(self, u, v, step=10):
+        ''' Create Streamlets at regular positions
+
+        Parameters
+        ----------
+            u, v : numpy arrays
+                fields of eastward and northward displacement
+            step : int
+                how many pixels to skip between seeding Streamlets
+        Modifies
+        --------
+            self.pool : list
+                add <number> Streamlet objects initiated in random positions
+
+        '''
+        n = 0
+        for r in range(0, u.shape[0], step):
+            for c in range(0, u.shape[1], step):
+                #import ipdb; ipdb.set_trace()
+                x0 = self.lx + c * (self.rx - self.lx) / u.shape[1]
+                y0 = self.ly + (u.shape[0] - r) * (self.uy - self.ly) / u.shape[0]
+                # create Streamlet
+                sl = Streamlet(u, v,
+                                x0=x0,
+                                y0=y0,
+                                lx=self.lx,
+                                rx=self.rx,
+                                ly=self.ly,
+                                uy=self.uy,
+                                factor=self.factor,
+                                style=self.style,
+                                doplot=self.doplot,
+                                **self.kwargs)
+
+                # add Streamlet to pool if number of points is 2
+                if len(sl) > 1:
+                    self.pool.append(sl)
+                    n += 1
+
 
     def __str__(self):
         ''' Print '''
@@ -406,6 +563,27 @@ class StreamletSet(object):
         # remove Streamlets which don't grow
         self.cleanup(badStatus=NOGROW)
 
+    def grow_full(self, u, v, maxLength=np.inf, both=False, mind=np.inf):
+        ''' Grow all Streamlets until they stop grow (stuck in the edge)
+
+        Parameters
+        ----------
+            u, v : numpy arrays
+                fields of eastward and northward displacement
+            maxLength : int
+                maximum number of steps to grow
+            both : bool
+                grow on both sides ?
+        Modifies
+        --------
+            self.pool : list
+                Streamlets in the self.pool are grown
+        See also Streamlet.grow()
+        '''
+        for sl in self.pool:
+            d = self.get_density(u)
+            sl.grow_full(u, v, maxLength, both, d<mind)
+
     def move(self, u, v, steps, maxMoves=None):
         ''' Move all Streamlets
 
@@ -427,18 +605,6 @@ class StreamletSet(object):
 
         # remove empty Streamlets
         self.cleanup(badStatus=EMPTY)
-
-    def plot(self):
-        ''' Plot all streamlets
-
-        Modifies
-        --------
-            self.pool : list
-                all Streamlets in self.pool are plotted
-        See also Streamlet.plot()
-
-        '''
-        map(Streamlet.plot, self.pool)
 
     def update_plot(self):
         ''' Update plot of all Streamlets
@@ -466,6 +632,8 @@ class StreamletSet(object):
         for sl in self.pool:
             if sl.status < badStatus:
                 goodLines.append(sl)
+            else:
+                del sl
 
         # and replace self.pool with goodLines
         self.pool = list(goodLines)
@@ -565,3 +733,82 @@ class StreamletSet(object):
             print len(self)
 
         return frame
+
+    def get_density(self, X, blur=0):
+        ''' Get raster with density of lines '''
+        density = np.zeros(X.shape)
+        for sl in self.pool:
+            density += sl.rasterize(X, blur)
+
+        return density
+
+    def decimate(self, X, mind=0.1, blur=1):
+        ''' Remove points from too dense lines '''
+        # get lengths of streamlines
+        lengths = np.array([len(sl) for sl in self.pool])
+        lengthsi = np.argsort(lengths)
+
+        # start decimation from shortesr line
+        for ii, leni in enumerate(lengthsi):
+            d0 = self.get_density(X, blur)
+            sl = self.pool[leni]
+            print 'start:', ii, leni, len(sl)
+            decimated = True
+            while decimated and len(sl) > 1:
+                # decimate from start and end
+                for pointIdx in [0, -1]:
+                    # get coordinates
+                    x, y = sl.pointsx[pointIdx], sl.pointsy[pointIdx]
+                    c, r = sl.cr_from_xy(x, y)
+                    print '    ', x, y, int(r), int(c),
+                    # get density for that point
+                    r, c = sl.valid_rc(r, c)
+                    d = d0[r, c]
+                    print d
+                    # if density is too high - remove the point
+                    if d > mind:
+                        sl.pointsx.pop(pointIdx)
+                        sl.pointsy.pop(pointIdx)
+                        print 'removed'
+                        decimated = True
+                    else:
+                        decimated = False
+
+
+            print 'stop:', len(sl)
+
+
+    def split(self, points):
+        ''' Split each streamlet into streamlets with limited lengths '''
+        newpool = []
+        for sl1 in self.pool:
+            p0 = 0
+            print sl1
+            for i in range(len(sl1) / points):
+                # create new streamlets from chunks of old streamlet
+                sl2 = sl1.copy()
+                sl2.pointsx = sl1.pointsx[p0:p0+points]
+                sl2.pointsy = sl1.pointsx[p0:p0+points]
+                sl2.plot()
+                print '   ', sl2
+
+                # append new streamlets
+                newpool.append(sl2)
+                p0 += points
+
+            # append new streamlet from the rest of the old streamlet
+            if p0 < len(sl1):
+                sl2 = sl1.copy()
+                sl2.pointsx = sl1.pointsx[p0:]
+                sl2.pointsy = sl1.pointsx[p0:]
+                sl2.plot()
+                newpool.append(sl2)
+                print '   ', sl2
+
+            # remove original line from pool
+            del sl1
+
+            self.pool = newpool
+
+
+
